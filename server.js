@@ -1,77 +1,90 @@
-import express from "express";
-import http from "http";
-import { WebSocketServer } from "ws";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// server.js
+const express = require("express");
+const http = require("http");
+const WebSocket = require("ws");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-const users = new Map();
+const wss = new WebSocket.Server({ server });
 
-app.use(express.static(path.join(__dirname, "public")));
+const PORT = process.env.PORT || 3000;
+
+// 🧩 Static-Files ausliefern (index.html + client.js)
+app.use(express.static(path.join(__dirname)));
+
+// =========================
+// Nutzerverwaltung
+// =========================
+let clients = new Map();
 
 wss.on("connection", (ws) => {
   console.log("🟢 Neuer Client verbunden");
 
-  ws.on("message", (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      console.log("📩 Eingehende Nachricht:", msg);
+  ws.on("message", (msg) => {
+    const data = JSON.parse(msg);
+    console.log("📩 Eingehende Nachricht:", data);
 
-      // Benutzer registrieren
-      if (msg.type === "register") {
-        users.set(msg.username, { ws, publicKey: msg.publicKey });
-        console.log("✅ Benutzer registriert:", msg.username);
-        broadcastUserList();
-        return;
-      }
+    if (data.type === "register") {
+      ws.username = data.username;
+      ws.publicKey = data.publicKey;
+      clients.set(ws.username, ws);
+      console.log(`✅ Benutzer registriert: ${data.username}`);
+      broadcastUserList();
+    }
 
-      // Nachricht weiterleiten
-      if (msg.type === "send") {
-        console.log(`➡️ Nachricht von ${msg.from} → ${msg.to}`);
-        for (const to of msg.to) {
-          const user = users.get(to);
-          if (user && user.ws.readyState === 1) {
-            user.ws.send(
-              JSON.stringify({
-                type: "message",
-                from: msg.from,
-                payload: msg.payload,
-              })
-            );
-          }
+    if (data.type === "send") {
+      const { from, to, payload } = data;
+      to.forEach((targetName) => {
+        const target = clients.get(targetName);
+        if (target && target.readyState === WebSocket.OPEN) {
+          target.send(
+            JSON.stringify({
+              type: "message",
+              from,
+              payload,
+            })
+          );
         }
-        return;
-      }
-    } catch (err) {
-      console.error("❌ Fehler bei Nachrichtenverarbeitung:", err);
+      });
+    }
+
+    if (data.type === "list") {
+      sendUserList(ws);
     }
   });
 
   ws.on("close", () => {
-    for (const [u, entry] of users) {
-      if (entry.ws === ws) users.delete(u);
+    if (ws.username) {
+      clients.delete(ws.username);
+      console.log(`🔴 Benutzer getrennt: ${ws.username}`);
+      broadcastUserList();
     }
-    broadcastUserList();
   });
 });
 
 function broadcastUserList() {
-  const list = [...users.entries()].map(([username, { publicKey }]) => ({
+  const list = [...clients.entries()].map(([username, ws]) => ({
     username,
-    publicKey,
+    publicKey: ws.publicKey,
   }));
   const msg = JSON.stringify({ type: "userlist", list });
-  for (const { ws } of users.values()) {
-    if (ws.readyState === 1) ws.send(msg);
+  for (const [, ws] of clients) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
   }
-  console.log("📤 Nutzerliste an alle gesendet");
 }
 
-server.listen(3000, () =>
-  console.log("🚀 Server läuft auf http://localhost:3000")
-);
+function sendUserList(ws) {
+  const list = [...clients.entries()].map(([username, ws]) => ({
+    username,
+    publicKey: ws.publicKey,
+  }));
+  ws.send(JSON.stringify({ type: "userlist", list }));
+}
+
+// =========================
+// Serverstart
+// =========================
+server.listen(PORT, () => {
+  console.log(`🚀 Server läuft auf Port ${PORT}`);
+});
