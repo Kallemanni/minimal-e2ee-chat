@@ -30,8 +30,11 @@ $("joinBtn").onclick = async () => {
   privateKey = keyPair.privateKey;
 
   const exported = arrayBufferToBase64(publicKey);
+  
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  
+  const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
 
-  ws = new WebSocket(`ws://${location.host}`);
 
   ws.onopen = () => {
     ws.send(
