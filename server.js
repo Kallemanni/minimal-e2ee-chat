@@ -10,81 +10,82 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
-// 🧩 Static-Files ausliefern (index.html + client.js)
-app.use(express.static(path.join(__dirname)));
+// Static files aus /public
+app.use(express.static(path.join(__dirname, "public")));
 
-// =========================
-// Nutzerverwaltung
-// =========================
-let clients = new Map();
+// Map username -> { ws, publicKey }
+const users = new Map();
 
 wss.on("connection", (ws) => {
-  console.log("🟢 Neuer Client verbunden");
+  console.log("🟢 Neuer WS-Client verbunden");
 
-  ws.on("message", (msg) => {
-    const data = JSON.parse(msg);
-    console.log("📩 Eingehende Nachricht:", data);
+  ws.on("message", (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      console.log("📩 Eingehende Nachricht:", msg.type, msg);
 
-    if (data.type === "register") {
-      ws.username = data.username;
-      ws.publicKey = data.publicKey;
-      clients.set(ws.username, ws);
-      console.log(`✅ Benutzer registriert: ${data.username}`);
-      broadcastUserList();
-    }
+      if (msg.type === "register") {
+        if (!msg.username || !msg.publicKey) return;
+        ws.username = msg.username;
+        ws.publicKey = msg.publicKey;
+        users.set(msg.username, { ws, publicKey: msg.publicKey });
+        console.log("✅ registriert:", msg.username);
+        broadcastUserList();
+        return;
+      }
 
-    if (data.type === "send") {
-      const { from, to, payload } = data;
-      to.forEach((targetName) => {
-        const target = clients.get(targetName);
-        if (target && target.readyState === WebSocket.OPEN) {
-          target.send(
-            JSON.stringify({
-              type: "message",
-              from,
-              payload,
-            })
-          );
+      if (msg.type === "list") {
+        sendUserList(ws);
+        return;
+      }
+
+      if (msg.type === "send") {
+        // msg: { type: "send", from, to: [user,...], payload }
+        const from = msg.from || "unknown";
+        const to = Array.isArray(msg.to) ? msg.to : [];
+        const payload = msg.payload;
+        console.log(`➡️ Nachricht von ${from} → to:[${to.join(",")}]`);
+
+        // Wenn to leer -> interpretieren wir das nicht als broadcast, client soll explicit senden.
+        for (const target of to) {
+          const entry = users.get(target);
+          if (entry && entry.ws && entry.ws.readyState === WebSocket.OPEN) {
+            entry.ws.send(JSON.stringify({ type: "message", from, payload }));
+            console.log(`📨 weitergeleitet an ${target}`);
+          } else {
+            console.log(`⚠️ Empfänger nicht erreichbar: ${target}`);
+          }
         }
-      });
-    }
-
-    if (data.type === "list") {
-      sendUserList(ws);
+        return;
+      }
+    } catch (e) {
+      console.error("❌ Fehler beim Verarbeiten:", e);
     }
   });
 
   ws.on("close", () => {
     if (ws.username) {
-      clients.delete(ws.username);
-      console.log(`🔴 Benutzer getrennt: ${ws.username}`);
+      users.delete(ws.username);
+      console.log("🔴 Verbindung entfernt:", ws.username);
       broadcastUserList();
     }
   });
 });
 
-function broadcastUserList() {
-  const list = [...clients.entries()].map(([username, ws]) => ({
-    username,
-    publicKey: ws.publicKey,
-  }));
-  const msg = JSON.stringify({ type: "userlist", list });
-  for (const [, ws] of clients) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
-  }
-}
-
 function sendUserList(ws) {
-  const list = [...clients.entries()].map(([username, ws]) => ({
-    username,
-    publicKey: ws.publicKey,
-  }));
+  const list = Array.from(users.entries()).map(([username, { publicKey }]) => ({ username, publicKey }));
   ws.send(JSON.stringify({ type: "userlist", list }));
 }
 
-// =========================
-// Serverstart
-// =========================
+function broadcastUserList() {
+  const list = Array.from(users.entries()).map(([username, { publicKey }]) => ({ username, publicKey }));
+  const msg = JSON.stringify({ type: "userlist", list });
+  for (const [, { ws }] of users) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+  }
+  console.log("📤 Nutzerliste an alle gesendet");
+}
+
 server.listen(PORT, () => {
   console.log(`🚀 Server läuft auf Port ${PORT}`);
 });

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🔐 Minimal E2EE Chat</title>
+  <style>
+    :root{
+      --bg:#0f172a; --panel:#1e293b; --accent:#2563eb; --border:#334155; --text:#e2e8f0; --text-dim:#94a3b8;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text);display:flex;justify-content:center;align-items:center;height:100vh}
+    #container{width:95%;max-width:900px;background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 0 20px #0005}
+    #header{background:#0b1220;color:var(--text);padding:14px;text-align:center;font-weight:600;border-bottom:1px solid var(--border)}
+    #login{padding:24px;text-align:center}
+    #username{padding:10px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text);width:60%}
+    #joinBtn{padding:10px 14px;margin-left:8px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer}
+    #chat{display:none;display:grid;grid-template-columns:1fr 220px;grid-template-rows:auto 1fr 60px;height:560px}
+    #chatMode{grid-column:1/span 2;padding:10px 16px;background:#111827;border-bottom:1px solid var(--border);color:var(--text-dim);text-align:center}
+    #messages{grid-column:1/2;list-style:none;margin:0;padding:16px;overflow:auto;background:var(--bg)}
+    #messages li{margin:8px 0;padding:10px 12px;border-radius:10px;max-width:75%}
+    #messages li.self{background:var(--accent);color:#fff;margin-left:auto}
+    #messages li.remote{background:#334155;color:var(--text)}
+    #messages li.private-msg{border-left:4px solid #f97316;background:rgba(249,115,22,0.12)}
+    #userlist{grid-column:2/3;list-style:none;margin:0;padding:12px;border-left:1px solid var(--border);overflow:auto}
+    #userlist li{padding:8px;border-radius:6px;cursor:pointer}
+    #userlist li.selected{background:var(--accent);color:#fff}
+    #inputArea{grid-column:1/span 2;display:flex;border-top:1px solid var(--border);padding:8px;background:var(--panel)}
+    #message{flex:1;padding:10px;border-radius:6px;border:1px solid var(--border);background:#0f172a;color:var(--text)}
+    #sendBtn{padding:10px 14px;margin-left:8px;background:var(--accent);border:none;color:#fff;border-radius:6px;cursor:pointer}
+    @media (max-width:700px){#chat{grid-template-columns:1fr;grid-template-rows:auto 1fr 60px}#userlist{display:none}}
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="header">🔐 Minimal E2EE Chat</div>
+
+    <div id="login">
+      <input id="username" placeholder="Nutzername..." />
+      <button id="joinBtn">Beitreten</button>
+    </div>
+
+    <div id="chat">
+      <div id="chatMode">💬 Gruppenchat (alle)</div>
+      <ul id="messages"></ul>
+      <ul id="userlist"></ul>
+
+      <div id="inputArea">
+        <input id="message" placeholder="Nachricht eingeben..." />
+        <button id="sendBtn">Senden</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>
